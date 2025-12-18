@@ -28,7 +28,7 @@ from mlebench.utils import (
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def is_lower_better(competition):
@@ -42,7 +42,7 @@ def is_lower_better(competition):
     return competition.grader.is_lower_better(leaderboard_df)
 
 
-def evaluate_submission(submission_path: Path, data_dir: Path, competition_id: Path, results_output_dir: Path):
+def evaluate_submission(submission_path: Path, data_dir: Path, competition_id: Path, results_output_dir: Path, working_dir: Path | None = None):
     # Load competition data
     new_registry = registry.set_data_dir(data_dir)
     competition = new_registry.get_competition(competition_id)
@@ -59,7 +59,10 @@ def evaluate_submission(submission_path: Path, data_dir: Path, competition_id: P
     if submission_exists:
         submission_df = read_csv(submission_path)
         answers = load_answers(competition.answers)
-        score = competition.grader(submission_df, answers)
+        
+        # Use working_dir if provided, otherwise use submission_path's parent directory
+        grader_working_dir = working_dir if working_dir is not None else submission_path.parent
+        score = competition.grader(submission_df, answers, data_dir / competition.id / "prepared", grader_working_dir)
     else:
         logger.warning(
             f"Invalid submission file: {submission_path}. Please check that the file exists and it is a CSV."
