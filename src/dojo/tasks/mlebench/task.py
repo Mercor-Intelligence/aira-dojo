@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+import tarfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -132,12 +133,10 @@ class MLEBenchTask(Task):
                 self._submission_file_path.unlink(missing_ok=True)
         else:
             self.logger.info(f"Execution successful - checking and fetching files in same kernel session...")
-            
+
             # Check for files and fetch them in the SAME kernel session (before kernel is stopped)
             # Use reset_session=False to keep the same kernel where files were created
             try:
-                import tarfile
-                
                 # Check if files exist and create tarball of submission/ directory in the same kernel
                 check_and_fetch_code = """
 import os
@@ -162,12 +161,12 @@ else:
                     if line.strip() and not any(skip in line.lower() for skip in ['execution time', 'time limit'])
                 ])
                 self.logger.info(f"File check results:\n{filtered_output}")
-                
+
                 # Fetch submission.csv
                 self.logger.info(f"Fetching submission.csv...")
                 interpreter.fetch_file(self._submission_file_path)
                 self.logger.info(f"Submission file fetched: {self._submission_file_path}")
-                
+
                 # Fetch submission/ directory tarball if it was created
                 if 'submission.tar created' in check_output:
                     tarball_path = Path(interpreter.working_dir) / "submission.tar"
@@ -178,6 +177,7 @@ else:
                             tar.extractall(interpreter.working_dir)
                         tarball_path.unlink()
                         self.logger.info("Successfully fetched and extracted submission/ directory")
+
             except Exception as e:
                 self.logger.warning(f"Error checking/fetching files: {e}")
                 # Still try to fetch submission.csv even if check failed
