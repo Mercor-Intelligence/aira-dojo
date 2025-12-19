@@ -4,6 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import inspect
 import os
 import tarfile
 from pathlib import Path
@@ -157,7 +158,7 @@ else:
                 check_result = interpreter.run(check_and_fetch_code, reset_session=False)
                 check_output = '\n'.join(check_result.term_out) if check_result.term_out else ''
                 filtered_output = '\n'.join([
-                    line for line in check_output.split('\n') 
+                    line for line in check_output.split('\n')
                     if line.strip() and not any(skip in line.lower() for skip in ['execution time', 'time limit'])
                 ])
                 self.logger.info(f"File check results:\n{filtered_output}")
@@ -189,7 +190,19 @@ else:
         has_csv_submission = self._submission_file_path.exists()
         eval_result[VALID_SOLUTION] = False
         if has_csv_submission:
-            is_valid_submission, message = validate_submission(self._submission_file_path, self.competition, data_dir=Path(self.cfg.cache_dir), working_dir=Path(interpreter.working_dir))
+            sig = inspect.signature(validate_submission)
+            params = list(sig.parameters.keys())
+
+            # If validate_submission accepts data_dir and working_dir, pass them
+            if len(params) >= 4 and 'data_dir' in params and 'working_dir' in params:
+                is_valid_submission, message = validate_submission(
+                    self._submission_file_path,
+                    self.competition,
+                    data_dir=Path(self.cfg.cache_dir),
+                    working_dir=Path(interpreter.working_dir),
+                )
+            else:
+                is_valid_submission, message = validate_submission(self._submission_file_path, self.competition)
             eval_result[VALID_SOLUTION] = is_valid_submission
             eval_result[VALID_SOLUTION_FEEDBACK] = message
             self.logger.info(
