@@ -253,6 +253,7 @@ else:
         exec_output = interpreter.run(solution, file_name=self._solution_script)
         eval_result = {EXECUTION_OUTPUT: exec_output}
 
+        # FIXME: should we support submission.tar here as well?
         interpreter.fetch_file(self._submission_file_path)
         has_csv_submission = self._submission_file_path.exists()
         assert has_csv_submission, "The final solution is not valid!"
