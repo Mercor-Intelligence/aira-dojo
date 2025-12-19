@@ -202,6 +202,7 @@ else:
                     working_dir=Path(interpreter.working_dir),
                 )
             else:
+                # Backwards-compatible call with only 2 params for standard mlebench
                 is_valid_submission, message = validate_submission(self._submission_file_path, self.competition)
             eval_result[VALID_SOLUTION] = is_valid_submission
             eval_result[VALID_SOLUTION_FEEDBACK] = message
@@ -261,7 +262,7 @@ else:
             data_dir=Path(self.cfg.cache_dir),
             competition_id=self.cfg.name,
             results_output_dir=Path(self.cfg.results_output_dir),
-            working_dir=self._submission_file_path.parent,
+            working_dir=Path(interpreter.working_dir),
         )
         eval_result[TEST_FITNESS] = test_fitness
         eval_result[AUX_EVAL_INFO] = parse_report(report)
