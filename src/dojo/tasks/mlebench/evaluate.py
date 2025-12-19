@@ -66,7 +66,12 @@ def evaluate_submission(submission_path: Path, data_dir: Path, competition_id: P
 
         # If validate_submission accepts data_dir and working_dir, pass them
         if len(params) >= 4 and 'data_dir' in params and 'working_dir' in params:
-            score = competition.grader(submission_df, answers, data_dir / competition.id / "prepared", working_dir)
+            score = competition.grader(
+                submission_df,
+                answers,
+                data_dir=data_dir / competition.id / "prepared",
+                working_dir=working_dir,
+            )
         else:
             score = competition.grader(submission_df, answers)
     else:
