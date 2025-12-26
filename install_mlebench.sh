@@ -3,7 +3,7 @@ set -e
 pushd src/dojo/tasks/mlebench
 git clone --depth 1 https://github.com/Mercor-Intelligence/meta-mle-task-creation-delivery.git
 pushd meta-mle-task-creation-delivery
-git fetch --depth 1 origin 23a78066081a001887c71ecda023a46e3f67d5fd
+git fetch --depth 1 origin 838b2ce5e7c082b9724565828858fceffc52eb02
 git checkout FETCH_HEAD
 git lfs fetch --all
 git lfs pull
