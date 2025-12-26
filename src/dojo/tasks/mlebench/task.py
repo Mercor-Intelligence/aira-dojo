@@ -4,7 +4,9 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import inspect
 import os
+import tarfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -131,14 +133,77 @@ class MLEBenchTask(Task):
             if self._submission_file_path.exists():
                 self._submission_file_path.unlink(missing_ok=True)
         else:
-            self.logger.info(f"Execution successful - fetching submission file for evaluation.")
-            interpreter.fetch_file(self._submission_file_path)
-            self.logger.info(f"Submission file fetched: {self._submission_file_path}")
+            self.logger.info(f"Execution successful - checking and fetching files in same kernel session...")
+
+            # Check for files and fetch them in the SAME kernel session (before kernel is stopped)
+            # Use reset_session=False to keep the same kernel where files were created
+            try:
+                # Check if files exist and create tarball of submission/ directory in the same kernel
+                check_and_fetch_code = """
+import os
+import tarfile
+print('=== CHECKING FILES ===')
+print(f'submission.csv exists: {os.path.exists("submission.csv")}')
+print(f'submission/ exists: {os.path.exists("submission")}')
+if os.path.exists("submission") and os.path.isdir("submission"):
+    files = os.listdir("submission")
+    print(f'submission/ contents: {files}')
+    # Create tarball
+    with tarfile.open('submission.tar', 'w') as tar:
+        tar.add('submission', arcname='submission')
+    print('submission.tar created')
+else:
+    print('submission/ not found')
+"""
+                check_result = interpreter.run(check_and_fetch_code, reset_session=False)
+                check_output = '\n'.join(check_result.term_out) if check_result.term_out else ''
+                filtered_output = '\n'.join([
+                    line for line in check_output.split('\n')
+                    if line.strip() and not any(skip in line.lower() for skip in ['execution time', 'time limit'])
+                ])
+                self.logger.info(f"File check results:\n{filtered_output}")
+
+                # Fetch submission.csv
+                self.logger.info(f"Fetching submission.csv...")
+                interpreter.fetch_file(self._submission_file_path)
+                self.logger.info(f"Submission file fetched: {self._submission_file_path}")
+
+                # Fetch submission/ directory tarball if it was created
+                if 'submission.tar created' in check_output:
+                    tarball_path = Path(interpreter.working_dir) / "submission.tar"
+                    fetched_tarball = interpreter.fetch_file(str(tarball_path))
+                    if fetched_tarball and tarball_path.exists():
+                        # Extract the tarball locally
+                        with tarfile.open(tarball_path, 'r') as tar:
+                            tar.extractall(interpreter.working_dir)
+                        tarball_path.unlink()
+                        self.logger.info("Successfully fetched and extracted submission/ directory")
+
+            except Exception as e:
+                self.logger.warning(f"Error checking/fetching files: {e}")
+                # Still try to fetch submission.csv even if check failed
+                try:
+                    interpreter.fetch_file(self._submission_file_path)
+                except:
+                    pass
 
         has_csv_submission = self._submission_file_path.exists()
         eval_result[VALID_SOLUTION] = False
         if has_csv_submission:
-            is_valid_submission, message = validate_submission(self._submission_file_path, self.competition)
+            sig = inspect.signature(validate_submission)
+            params = list(sig.parameters.keys())
+
+            # If validate_submission accepts data_dir and working_dir, pass them
+            if len(params) >= 4 and 'data_dir' in params and 'working_dir' in params:
+                is_valid_submission, message = validate_submission(
+                    self._submission_file_path,
+                    self.competition,
+                    data_dir=Path(self.cfg.cache_dir),
+                    working_dir=Path(interpreter.working_dir),
+                )
+            else:
+                # Backwards-compatible call with only 2 params for standard mlebench
+                is_valid_submission, message = validate_submission(self._submission_file_path, self.competition)
             eval_result[VALID_SOLUTION] = is_valid_submission
             eval_result[VALID_SOLUTION_FEEDBACK] = message
             self.logger.info(
@@ -152,6 +217,7 @@ class MLEBenchTask(Task):
                     data_dir=Path(self.cfg.cache_dir),
                     competition_id=self.cfg.name,
                     results_output_dir=Path(self.cfg.results_output_dir),
+                    working_dir=Path(interpreter.working_dir),
                 )
                 eval_result[TEST_FITNESS] = test_fitness
                 eval_result[AUX_EVAL_INFO] = parse_report(report)
@@ -187,6 +253,7 @@ class MLEBenchTask(Task):
         exec_output = interpreter.run(solution, file_name=self._solution_script)
         eval_result = {EXECUTION_OUTPUT: exec_output}
 
+        # FIXME: should we support submission.tar here as well?
         interpreter.fetch_file(self._submission_file_path)
         has_csv_submission = self._submission_file_path.exists()
         assert has_csv_submission, "The final solution is not valid!"
@@ -196,6 +263,7 @@ class MLEBenchTask(Task):
             data_dir=Path(self.cfg.cache_dir),
             competition_id=self.cfg.name,
             results_output_dir=Path(self.cfg.results_output_dir),
+            working_dir=Path(interpreter.working_dir),
         )
         eval_result[TEST_FITNESS] = test_fitness
         eval_result[AUX_EVAL_INFO] = parse_report(report)
