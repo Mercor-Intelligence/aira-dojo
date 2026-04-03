@@ -26,7 +26,7 @@ scipy==1.15.2
 seaborn==0.13.2
 sentencepiece==0.2.0
 sklearn-pandas==2.2.0
-streamlit==1.44.1
+streamlit==1.54.0
 sympy==1.13.3
 tqdm==4.67.1
 xlrd==2.0.1
